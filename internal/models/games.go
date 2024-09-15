@@ -1,10 +1,10 @@
 package models
 
-type GamesReportOut struct {
-	Game map[string]*GamesReportGameOut `json:"games"`
+type MatchReportOut struct {
+	Game map[string]*MatchReportGameOut `json:"games"`
 }
 
-type GamesReportGameOut struct {
+type MatchReportGameOut struct {
 	TotalKills   int            `json:"total_kills"`
 	Players      []string       `json:"players"`
 	Kills        map[string]int `json:"kills"`
