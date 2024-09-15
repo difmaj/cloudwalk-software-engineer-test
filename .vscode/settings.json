@@ -1,0 +1,5 @@
+{
+  "go.useLanguageServer": true,
+  "go.lintOnSave": "file",
+  "go.buildTags": "netgo"
+}
