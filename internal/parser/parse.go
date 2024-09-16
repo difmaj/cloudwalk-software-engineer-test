@@ -7,44 +7,23 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/difmaj/cloudwalk-software-engineer-test/internal/models"
 	"github.com/difmaj/cloudwalk-software-engineer-test/internal/models/enums"
 )
-
-type Game struct {
-	InitGame [][]byte
-	Clients  []*Client
-	Kills    []*KillEvent
-}
-
-type Client struct {
-	ClientID int
-	UserName []byte
-}
-
-type KillEvent struct {
-	KillerID     int
-	VictimID     int
-	KillMethodID int
-}
-
-type LogData struct {
-	Games   []*Game
-	Current *Game
-}
 
 const blankIndex = 6
 
 // Nested map: eventLength -> eventName -> parsing function
-var eventHandlers = map[string]func([]byte, *LogData) error{
+var eventHandlers = map[string]func([]byte, *models.LogData) error{
 	enums.EventInitGame:              ParseInitGameEventHandler,
 	enums.EventClientConnect:         ParseClientConectedEventHandler,
 	enums.EventClientUserinfoChanged: ParseClientUserinfoChangedEventHandler,
 	enums.EventKill:                  ParseKillEventHandler,
 }
 
-func ParseLog(filePath string) (*LogData, error) {
-	logData := &LogData{
-		Games:   make([]*Game, 0),
+func ParseLog(filePath string) (*models.LogData, error) {
+	logData := &models.LogData{
+		Games:   make([]*models.LogGame, 0),
 		Current: nil,
 	}
 
@@ -87,12 +66,12 @@ func ParseLog(filePath string) (*LogData, error) {
 	return logData, nil
 }
 
-func ParseInitGameEventHandler(line []byte, logData *LogData) error {
+func ParseInitGameEventHandler(line []byte, logData *models.LogData) error {
 	info := bytes.Split(line, []byte("\\"))[1:]
 
-	logData.Current = &Game{
-		Clients: make([]*Client, 0),
-		Kills:   make([]*KillEvent, 0),
+	logData.Current = &models.LogGame{
+		Clients: make([]*models.LogClient, 0),
+		Kills:   make([]*models.LogKillEvent, 0),
 	}
 	logData.Current.InitGame = make([][]byte, len(info))
 	copy(logData.Current.InitGame, info)
@@ -101,7 +80,7 @@ func ParseInitGameEventHandler(line []byte, logData *LogData) error {
 	return nil
 }
 
-func ParseClientConectedEventHandler(line []byte, logData *LogData) error {
+func ParseClientConectedEventHandler(line []byte, logData *models.LogData) error {
 	if logData.Current == nil {
 		return errors.New("client event without a game")
 	}
@@ -113,11 +92,11 @@ func ParseClientConectedEventHandler(line []byte, logData *LogData) error {
 		}
 	}
 
-	logData.Current.Clients = append(logData.Current.Clients, &Client{ClientID: ParseInt(line)})
+	logData.Current.Clients = append(logData.Current.Clients, &models.LogClient{ClientID: ParseInt(line)})
 	return nil
 }
 
-func ParseClientUserinfoChangedEventHandler(line []byte, logData *LogData) error {
+func ParseClientUserinfoChangedEventHandler(line []byte, logData *models.LogData) error {
 	if logData.Current == nil {
 		return errors.New("client event without a game")
 	}
@@ -144,7 +123,7 @@ func ParseClientUserinfoChangedEventHandler(line []byte, logData *LogData) error
 	return nil
 }
 
-func ParseKillEventHandler(line []byte, logData *LogData) error {
+func ParseKillEventHandler(line []byte, logData *models.LogData) error {
 	if logData.Current == nil {
 		return errors.New("kill event without a game")
 	}
@@ -157,10 +136,10 @@ func ParseKillEventHandler(line []byte, logData *LogData) error {
 	}
 
 	parts := bytes.Fields(line[:colonIndex])
-	logData.Current.Kills = append(logData.Current.Kills, &KillEvent{
+	logData.Current.Kills = append(logData.Current.Kills, &models.LogKillEvent{
 		KillerID:     ParseInt(parts[0]),
 		VictimID:     ParseInt(parts[1]),
-		KillMethodID: ParseInt(parts[2]),
+		KillMethodID: enums.DeathMeansID(ParseInt(parts[2])),
 	})
 	return nil
 }

@@ -3,6 +3,7 @@ package tests_test
 import (
 	"testing"
 
+	"github.com/difmaj/cloudwalk-software-engineer-test/internal/models"
 	"github.com/difmaj/cloudwalk-software-engineer-test/internal/parser"
 	"github.com/stretchr/testify/suite"
 )
@@ -55,7 +56,7 @@ func (s *SuiteParser) TestParseInitGameEventHandler() {
 
 	for _, tt := range tests {
 		s.T().Run(tt.name, func(t *testing.T) {
-			logData := &parser.LogData{}
+			logData := &models.LogData{}
 			err := parser.ParseInitGameEventHandler(tt.input, logData)
 			s.Require().Equal(tt.wantErr, err != nil, "ParseInitGameEventHandler() error = %v, wantErr %v", err, tt.wantErr)
 			s.Require().Equal(len(logData.Games), 1, "Expected only one game to be added")
@@ -78,9 +79,9 @@ func (s *SuiteParser) TestParseClientConectedEventHandler() {
 
 	for _, tt := range tests {
 		s.T().Run(tt.name, func(t *testing.T) {
-			logData := &parser.LogData{
-				Current: &parser.Game{
-					Clients: []*parser.Client{},
+			logData := &models.LogData{
+				Current: &models.LogGame{
+					Clients: []*models.LogClient{},
 				},
 			}
 
@@ -116,9 +117,9 @@ func (s *SuiteParser) TestParseClientUserinfoChangedEventHandler() {
 
 	for _, tt := range tests {
 		s.T().Run(tt.name, func(t *testing.T) {
-			logData := &parser.LogData{
-				Current: &parser.Game{
-					Clients: []*parser.Client{
+			logData := &models.LogData{
+				Current: &models.LogGame{
+					Clients: []*models.LogClient{
 						{ClientID: 2},
 					},
 				},
@@ -154,9 +155,9 @@ func (s *SuiteParser) TestParseKillEventHandler() {
 
 	for _, tt := range tests {
 		s.T().Run(tt.name, func(t *testing.T) {
-			logData := &parser.LogData{
-				Current: &parser.Game{
-					Kills: []*parser.KillEvent{},
+			logData := &models.LogData{
+				Current: &models.LogGame{
+					Kills: []*models.LogKillEvent{},
 				},
 			}
 
