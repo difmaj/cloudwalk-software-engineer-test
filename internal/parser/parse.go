@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"errors"
-	"fmt"
 	"os"
 
 	"github.com/difmaj/cloudwalk-software-engineer-test/internal/models"
@@ -54,8 +53,7 @@ func ParseLog(filePath string) (*models.LogData, error) {
 			// +3 to ignore the first trhe characters after the event name (': ')
 			handler(line[eventIndex+2:], logData)
 		} else {
-			fmt.Println("No handler for event length", eventIndex-blankIndex)
-			fmt.Println(string(line))
+			// fmt.Println("No handler for event", string(line))
 			continue
 		}
 	}
