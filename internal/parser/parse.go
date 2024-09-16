@@ -3,7 +3,6 @@ package parser
 import (
 	"bufio"
 	"bytes"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"os"
@@ -12,15 +11,14 @@ import (
 )
 
 type Game struct {
-	InitGame     [][]byte
-	ClientEvents []*ClientEvent
-	Kills        []*KillEvent
+	InitGame [][]byte
+	Clients  []*Client
+	Kills    []*KillEvent
 }
 
-type ClientEvent struct {
-	EventType []byte
-	ClientID  int
-	UserName  []byte
+type Client struct {
+	ClientID int
+	UserName []byte
 }
 
 type KillEvent struct {
@@ -30,25 +28,24 @@ type KillEvent struct {
 }
 
 type LogData struct {
-	Games       []*Game
-	currentGame *Game
+	Games   []*Game
+	Current *Game
 }
 
 const blankIndex = 6
 
 // Nested map: eventLength -> eventName -> parsing function
 var eventHandlers = map[string]func([]byte, *LogData) error{
-	enums.EventInitGame:              parseInitGame,
-	enums.EventClientConnect:         parseClientEventHandler,
-	enums.EventClientUserinfoChanged: parseClientEventHandler,
-	enums.EventClientBegin:           parseClientEventHandler,
-	enums.EventKill:                  parseKillEventHandler,
+	enums.EventInitGame:              ParseInitGameEventHandler,
+	enums.EventClientConnect:         ParseClientConectedEventHandler,
+	enums.EventClientUserinfoChanged: ParseClientUserinfoChangedEventHandler,
+	enums.EventKill:                  ParseKillEventHandler,
 }
 
 func ParseLog(filePath string) (*LogData, error) {
 	logData := &LogData{
-		Games:       make([]*Game, 0),
-		currentGame: nil,
+		Games:   make([]*Game, 0),
+		Current: nil,
 	}
 
 	file, err := os.Open(filePath)
@@ -76,7 +73,7 @@ func ParseLog(filePath string) (*LogData, error) {
 		// Check if there are handlers for this event length
 		if handler, exists := eventHandlers[string(line[blankIndex+1:eventIndex])]; exists {
 			// +3 to ignore the first trhe characters after the event name (': ')
-			handler(line[blankIndex+enums.EventInitGameLength+2:], logData)
+			handler(line[eventIndex+2:], logData)
 		} else {
 			fmt.Println("No handler for event length", eventIndex-blankIndex)
 			fmt.Println(string(line))
@@ -90,52 +87,99 @@ func ParseLog(filePath string) (*LogData, error) {
 	return logData, nil
 }
 
-func parseInitGame(line []byte, logData *LogData) error {
-	logData.currentGame = &Game{
-		InitGame:     bytes.Split(line, []byte("\\")),
-		ClientEvents: make([]*ClientEvent, 0),
-		Kills:        make([]*KillEvent, 0),
+func ParseInitGameEventHandler(line []byte, logData *LogData) error {
+	info := bytes.Split(line, []byte("\\"))[1:]
+
+	logData.Current = &Game{
+		Clients: make([]*Client, 0),
+		Kills:   make([]*KillEvent, 0),
 	}
-	logData.Games = append(logData.Games, logData.currentGame)
+	logData.Current.InitGame = make([][]byte, len(info))
+	copy(logData.Current.InitGame, info)
+
+	logData.Games = append(logData.Games, logData.Current)
 	return nil
 }
 
-func parseClientEventHandler(line []byte, logData *LogData) error {
-	if logData.currentGame == nil {
+func ParseClientConectedEventHandler(line []byte, logData *LogData) error {
+	if logData.Current == nil {
 		return errors.New("client event without a game")
 	}
 
-	parts := bytes.Fields(line)
-	clientEvent := &ClientEvent{
-		EventType: parts[0],
-		ClientID:  parseInt(parts[1]),
+	// check if the client is already in the game
+	for _, client := range logData.Current.Clients {
+		if client.ClientID == ParseInt(line) {
+			return nil
+		}
 	}
-	if len(parts) > 2 {
-		clientEvent.UserName = parts[2]
-	}
-	logData.currentGame.ClientEvents = append(logData.currentGame.ClientEvents, clientEvent)
+
+	logData.Current.Clients = append(logData.Current.Clients, &Client{ClientID: ParseInt(line)})
 	return nil
 }
 
-func parseKillEventHandler(line []byte, logData *LogData) error {
-	if logData.currentGame == nil {
+func ParseClientUserinfoChangedEventHandler(line []byte, logData *LogData) error {
+	if logData.Current == nil {
+		return errors.New("client event without a game")
+	}
+
+	var spaceIndex int
+	for spaceIndex = 0; spaceIndex < len(line); spaceIndex++ {
+		if line[spaceIndex] == ' ' {
+			break
+		}
+	}
+
+	info := bytes.Split(line[spaceIndex+1:], []byte("\\"))
+	if len(info) < 2 {
+		return errors.New("invalid ClientUserinfoChanged event")
+	}
+
+	// check if the client is already in the game
+	for _, client := range logData.Current.Clients {
+		if client.ClientID == ParseInt(line[:spaceIndex]) {
+			client.UserName = make([]byte, len(info[1]))
+			copy(client.UserName, info[1])
+		}
+	}
+	return nil
+}
+
+func ParseKillEventHandler(line []byte, logData *LogData) error {
+	if logData.Current == nil {
 		return errors.New("kill event without a game")
 	}
 
-	parts := bytes.Fields(line)
-	logData.currentGame.Kills = append(logData.currentGame.Kills, &KillEvent{
-		KillerID:     parseInt(parts[1]),
-		VictimID:     parseInt(parts[2]),
-		KillMethodID: parseInt(parts[2]),
+	var colonIndex int
+	for colonIndex = 0; colonIndex < len(line); colonIndex++ {
+		if line[colonIndex] == ':' {
+			break
+		}
+	}
+
+	parts := bytes.Fields(line[:colonIndex])
+	logData.Current.Kills = append(logData.Current.Kills, &KillEvent{
+		KillerID:     ParseInt(parts[0]),
+		VictimID:     ParseInt(parts[1]),
+		KillMethodID: ParseInt(parts[2]),
 	})
 	return nil
 }
 
-func parseInt(value []byte) int {
-	var num int32
-	err := binary.Read(bytes.NewReader(value), binary.BigEndian, &num)
-	if err != nil {
-		return 0
+func ParseInt(value []byte) int {
+	result := 0
+	sign := 1
+	start := 0
+
+	// Check if the number is negative
+	if len(value) > 0 && value[0] == '-' {
+		sign = -1
+		start = 1
 	}
-	return int(num)
+
+	// Iterate over each byte and calculate the integer value
+	for i := start; i < len(value); i++ {
+		result = result*10 + int(value[i]-'0')
+	}
+
+	return result * sign
 }

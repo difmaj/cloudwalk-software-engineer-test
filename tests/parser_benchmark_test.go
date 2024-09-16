@@ -1,6 +1,7 @@
 package tests_test
 
 import (
+	"strconv"
 	"testing"
 )
 
@@ -75,5 +76,41 @@ func BenchmarkMatchByLengthAndString(b *testing.B) {
 		for _, line := range logLines {
 			matchByLengthAndString(line)
 		}
+	}
+}
+
+func parseInt(value []byte) int {
+	result := 0
+	sign := 1
+	start := 0
+
+	// Check if the number is negative
+	if len(value) > 0 && value[0] == '-' {
+		sign = -1
+		start = 1
+	}
+
+	// Iterate over each byte and calculate the integer value
+	for i := start; i < len(value); i++ {
+		result = result*10 + int(value[i]-'0')
+	}
+
+	return result * sign
+}
+
+func parseInt2(value []byte) int {
+	result, _ := strconv.Atoi(string(value))
+	return result
+}
+
+func BenchmarkParseInt(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		parseInt([]byte("-1234"))
+	}
+}
+
+func BenchmarkParseInt2(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		parseInt2([]byte("-1234"))
 	}
 }
